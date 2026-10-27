@@ -2,6 +2,7 @@
 // run to history.json so the page can show movement since the previous scan.
 // Every check is defined once, in CHECKS; a finding is { check, org, obj, field?, detail }.
 const fs = require('fs');
+const { MODEL, score: fieldScore } = require('./fieldscore');
 const OUT = __dirname.split(String.fromCharCode(92)).join('/');
 
 const CHECKS = [
@@ -33,16 +34,23 @@ const CHECKS = [
   { code: 'NAME_VERSIONED', cat: 'Naming', sev: 'low', title: 'API name looks like a copy or second version',
     why: 'Names like _2, _v2, _New or _Copy usually mean an older field was replaced but not removed.',
     fix: 'Check whether the original is still needed.' },
-  // usage
-  { code: 'USE_EMPTY', cat: 'Usage', sev: 'high', title: 'Custom field is never filled in',
-    why: 'No record has a value, so the field adds clutter and counts toward the object limit.',
-    fix: 'Confirm nothing writes to it (integrations, flows), then remove it from layouts and delete it.' },
-  { code: 'USE_RARE', cat: 'Usage', sev: 'medium', title: 'Custom field is filled in on under 1% of records',
-    why: 'Rarely used fields are often abandoned or only set by a one-off import.',
-    fix: 'Check whether the field is still part of a process.' },
-  { code: 'USE_STALE', cat: 'Usage', sev: 'medium', title: 'Custom field not populated on any new record in over a year',
-    why: 'The object still gets new records, but none created in the last 12+ months has a value here (and no tracked change either), so the process that filled it has likely stopped. Fields without history tracking that are only ever set on older records can show up here too.',
-    fix: 'Confirm the field is retired, then remove it from layouts and archive or delete it.' },
+  // field health — the Action column of the Field Health Analysis workbooks (fieldscore.js),
+  // for fields the org built itself
+  { code: 'FH_RETIRE', cat: 'Field health', sev: 'high', title: 'Retire candidate',
+    why: 'Past the grace period with no measurable current value: never adopted, dormant 12+ months, or a single value only.',
+    fix: 'Verify against reports, dashboards and integrations, then remove it from layouts and delete it. Required fields need the requirement resolved first.' },
+  { code: 'FH_STOPPED', cat: 'Field health', sev: 'medium', title: 'Recently stopped being populated',
+    why: 'Used since it was created, but no record from the last three complete months has a value.',
+    fix: 'Investigate — did a process, flow or integration break?' },
+  { code: 'FH_RARE', cat: 'Field health', sev: 'medium', title: 'Rarely used (under 1% of records since creation)',
+    why: 'Still populated now and then, but on very few records.', fix: 'Review — consolidate with a similar field or retire.' },
+  { code: 'FH_FORMULA', cat: 'Field health', sev: 'low', title: 'Formula with no usage signal',
+    why: 'A formula is filled on every record by definition, so only references and its values show use: this one has no references, or always returns the same value.',
+    fix: 'Verify it is used in reports or list views before deleting.' },
+  { code: 'FH_REQ_EMPTY', cat: 'Field health', sev: 'medium', title: 'Required field that is never populated',
+    why: 'Salesforce requires a value, yet no record has one.', fix: 'Check how records are saved without it; resolve the requirement or the field.' },
+  { code: 'FH_LATE', cat: 'Field health', sev: 'low', title: 'Adopted more than a year after it was created',
+    why: 'The field sat unused for over a year before real use began (1% of a month’s records).', fix: 'Informational: check it was rolled out as intended.' },
   { code: 'USE_EMPTY_OBJECT', cat: 'Usage', sev: 'medium', title: 'Custom object has no records',
     why: 'An object nobody stores data in is usually unfinished or abandoned, or belongs to an unused app.',
     fix: 'Confirm it is not new or awaiting a launch, then delete it or uninstall its package.' },
@@ -103,12 +111,13 @@ const isManagedField = f => f.custom && !!pkgOf(f.name);
 const isInputField = f => !f.formula && !['rollup', 'autonumber'].includes(f.kind);
 const daysBefore = (d, ref) => (Date.parse(ref) - Date.parse(d)) / 864e5;
 
-const findings = [], summary = {};
+const findings = [], summary = {}, scores = { sbu: {}, xbu: {} };
 for (const id of ['sbu', 'xbu']) {
   const S = JSON.parse(fs.readFileSync(`${OUT}/${id}_tech.json`, 'utf8'));
   const scanned = S.org.scanned;
   const add = (check, obj, field, detail, extra) => findings.push(Object.assign({ check, org: id, obj, field: field || '', detail: detail || '' }, extra || {}));
-  const st = { org: S.org, customFields: 0, documented: 0, nameChecked: 0, nameOk: 0, measured: 0, empty: 0,
+  const st = { org: S.org, customFields: 0, documented: 0, nameChecked: 0, nameOk: 0,
+    scored: 0, bands: {}, ownScored: 0, ownBands: {}, retire: 0,
     objects: S.objects.length, fields: S.objects.reduce((a, o) => a + o.fields.length, 0) };
 
   for (const o of S.objects) {
@@ -147,18 +156,30 @@ for (const id of ['sbu', 'xbu']) {
       const hint = (f.label + ' ' + f.name.replace(/__c$/, '').replace(/_/g, ' ')).match(CLEANUP) || f.desc.match(CLEANUP_DESC);
       if (hint) add('NAME_CLEANUP', o.api, f.name, 'mentions “' + hint[0].trim() + '”');
       if (VERSIONED.test(f.name)) add('NAME_VERSIONED', o.api, f.name);
-      if (f.measurable && o.records > 0 && f.filled != null) {
-        st.measured++;
-        const old = !f.created || daysBefore(f.created, scanned) > 90;   // new fields get a grace period
-        if (f.filled === 0) { if (old) { st.empty++; add('USE_EMPTY', o.api, f.name, '0 of ' + o.records.toLocaleString('en-US') + ' records'); } }
-        else if (f.filled / o.records < 0.01 && old) add('USE_RARE', o.api, f.name,
-          f.filled.toLocaleString('en-US') + ' of ' + o.records.toLocaleString('en-US') + ' records (' + (100 * f.filled / o.records).toFixed(2) + '%)');
-        // stale: nothing new carries a value for a year, yet the object itself is still getting records
-        const last = [f.lastRecord, f.lastChange].filter(Boolean).sort().pop();
-        if (f.filled > 0 && last && daysBefore(last, scanned) > 365 && o.newestRecord && daysBefore(o.newestRecord, scanned) <= 90)
-          add('USE_STALE', o.api, f.name, f.lastChange && f.lastChange === last
-            ? 'last tracked change ' + last : 'newest record with a value was created ' + last);
-      }
+    }
+
+    // Field Health score for every measured field (standard and managed too, as in the workbooks);
+    // findings only for the org's own custom fields, which are the ones it can act on
+    for (const f of o.fields) {
+      if (!f.fh) continue;
+      const origin = !f.custom ? 'Standard' : isManagedField(f) ? 'Managed Package' : 'Custom';
+      const age = f.created ? Math.round(daysBefore(f.created, scanned)) : null;
+      const s = fieldScore(f.fh, f, age, origin);
+      scores[id][o.api + '.' + f.name] = s;
+      st.scored++; st.bands[s.band] = (st.bands[s.band] || 0) + 1;
+      if (origin !== 'Custom') continue;
+      st.ownScored++; st.ownBands[s.band] = (st.ownBands[s.band] || 0) + 1;
+      const fh = f.fh, pctS = v => (v < 1 && v > 0 ? v.toFixed(2) : String(Math.round(v))) + '%';
+      const last = fh.U ? 'last populated ' + fh.U + (fh.V ? ' (' + fh.V + ' mo ago)' : '') : 'never populated';
+      const tag = 'score ' + s.score + ' · ' + s.cls;
+      if (s.action === 'Retire candidate' || s.action === 'Required field — resolve requirement first') {
+        st.retire++;
+        add('FH_RETIRE', o.api, f.name, tag + ' · ' + last + (s.action !== 'Retire candidate' ? ' · required' : ''));
+      } else if (s.cls === 'Recently Stopped') add('FH_STOPPED', o.api, f.name, tag + ' · ' + pctS(fh.Q) + ' since creation, 0% last 3 months · ' + last);
+      else if (s.cls === 'Rarely Used') add('FH_RARE', o.api, f.name, tag + ' · ' + pctS(fh.Q) + ' since creation');
+      else if (s.action === 'Verify formula usage') add('FH_FORMULA', o.api, f.name, tag + ' · ' + s.refs + ' reference' + (s.refs === 1 ? '' : 's'));
+      if (fh.required && fh.M === 0 && !fh.formula) add('FH_REQ_EMPTY', o.api, f.name);
+      if (fh.X != null && fh.X > 365) add('FH_LATE', o.api, f.name, fh.X.toLocaleString('en-US') + ' days from creation to first real use (' + fh.W + ')');
     }
   }
 
@@ -199,17 +220,29 @@ const today = new Date().toISOString().slice(0, 10);
 const histPath = `${OUT}/history.json`;
 const history = fs.existsSync(histPath) ? JSON.parse(fs.readFileSync(histPath, 'utf8')) : [];
 const entry = { date: today, counts, stats: Object.fromEntries(Object.entries(summary).map(([k, s]) =>
-  [k, { customFields: s.customFields, documented: s.documented, nameChecked: s.nameChecked, nameOk: s.nameOk, measured: s.measured, empty: s.empty }])) };
+  [k, { customFields: s.customFields, documented: s.documented, nameChecked: s.nameChecked, nameOk: s.nameOk,
+    ownScored: s.ownScored, retire: s.retire, ownBands: s.ownBands }])) };
 // a re-run on the same day replaces that day's line instead of adding another
 if (history.length && history[history.length - 1].date === today) history[history.length - 1] = entry; else history.push(entry);
 fs.writeFileSync(histPath, JSON.stringify(history, null, 1));
-fs.writeFileSync(`${OUT}/health.json`, JSON.stringify({ generated: today, checks: CHECKS, summary, findings }));
+
+// scores, compactly: band / classification / action as indexes into lists stored once
+const lists = { band: [], cls: [], action: [] };
+const idx = (k, v) => { let i = lists[k].indexOf(v); if (i < 0) { i = lists[k].length; lists[k].push(v); } return i; };
+const packed = {};
+for (const [id, m] of Object.entries(scores)) {
+  packed[id] = {};
+  for (const [k, s] of Object.entries(m)) packed[id][k] = [s.score, idx('band', s.band), idx('cls', s.cls), idx('action', s.action),
+    ...['population', 'recency', 'trend', 'info', 'integration', 'documentation'].map(p => s.parts[p])];
+}
+fs.writeFileSync(`${OUT}/health.json`, JSON.stringify({ generated: today, checks: CHECKS, model: MODEL, summary, findings,
+  scores: { lists, byOrg: packed } }));
 
 for (const id of ['sbu', 'xbu']) {
   const s = summary[id];
   console.log('\n== ' + id.toUpperCase() + ' ' + s.org.name + ' — ' + s.customFields + ' own custom fields, ' +
-    Math.round(100 * s.documented / s.customFields) + '% documented, ' + Math.round(100 * s.nameOk / s.nameChecked) + '% names match, ' +
-    s.empty + ' of ' + s.measured + ' measured fields empty');
+    Math.round(100 * s.documented / s.customFields) + '% documented, ' + Math.round(100 * s.nameOk / s.nameChecked) + '% names match | ' +
+    s.scored + ' fields scored, ' + s.retire + ' own retire candidates | own bands ' + JSON.stringify(s.ownBands));
   for (const c of CHECKS) if (counts[id + '|' + c.code]) console.log('  ' + c.sev.padEnd(6) + ' ' + c.code.padEnd(17) + ' ' + counts[id + '|' + c.code]);
 }
 console.log('\nwrote health.json (' + findings.length + ' findings) and history.json (' + history.length + ' runs)');

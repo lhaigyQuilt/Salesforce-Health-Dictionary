@@ -7,12 +7,15 @@
    "sbu|NAME_MISMATCH": 43,
    "sbu|NAME_VERSIONED": 79,
    "sbu|NAME_PARTIAL": 264,
-   "sbu|USE_RARE": 484,
-   "sbu|USE_STALE": 310,
    "sbu|DOC_FIELD_HELP": 1816,
-   "sbu|USE_EMPTY": 260,
    "sbu|NAME_CLEANUP": 29,
    "sbu|LIM_PICKLIST_BIG": 31,
+   "sbu|FH_STOPPED": 122,
+   "sbu|FH_RETIRE": 815,
+   "sbu|FH_REQ_EMPTY": 36,
+   "sbu|FH_FORMULA": 280,
+   "sbu|FH_LATE": 58,
+   "sbu|FH_RARE": 139,
    "sbu|DOC_OBJ_DESC": 32,
    "sbu|USE_EMPTY_OBJECT": 9,
    "sbu|LIM_NEAR": 2,
@@ -26,14 +29,17 @@
    "xbu|LIM_NEAR": 2,
    "xbu|DOC_FIELD_DESC": 2510,
    "xbu|DOC_FIELD_HELP": 2210,
-   "xbu|USE_RARE": 535,
-   "xbu|USE_STALE": 323,
-   "xbu|USE_EMPTY": 339,
    "xbu|NAME_PARTIAL": 227,
    "xbu|LIM_PICKLIST_BIG": 30,
    "xbu|NAME_MISMATCH": 53,
    "xbu|NAME_CLEANUP": 27,
    "xbu|NAME_VERSIONED": 64,
+   "xbu|FH_RETIRE": 946,
+   "xbu|FH_STOPPED": 93,
+   "xbu|FH_RARE": 188,
+   "xbu|FH_REQ_EMPTY": 54,
+   "xbu|FH_FORMULA": 173,
+   "xbu|FH_LATE": 39,
    "xbu|NAME_DUP_LABEL": 62,
    "xbu|DOC_OBJ_DESC": 37,
    "xbu|USE_EMPTY_OBJECT": 14,
@@ -51,16 +57,34 @@
     "documented": 314,
     "nameChecked": 2845,
     "nameOk": 2538,
-    "measured": 1648,
-    "empty": 260
+    "ownScored": 2426,
+    "retire": 815,
+    "ownBands": {
+     "Healthy": 405,
+     "Review": 352,
+     "Monitor": 443,
+     "Retire": 631,
+     "Likely Debt": 417,
+     "Too New - Provisional": 122,
+     "Insufficient Data": 56
+    }
    },
    "xbu": {
     "customFields": 2733,
     "documented": 223,
     "nameChecked": 2733,
     "nameOk": 2453,
-    "measured": 1873,
-    "empty": 339
+    "ownScored": 2414,
+    "retire": 946,
+    "ownBands": {
+     "Review": 356,
+     "Retire": 656,
+     "Likely Debt": 392,
+     "Healthy": 352,
+     "Monitor": 450,
+     "Too New - Provisional": 124,
+     "Insufficient Data": 84
+    }
    }
   }
  }

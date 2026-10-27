@@ -8,6 +8,11 @@ const read = f => fs.readFileSync(`${OUT}/${f}`, 'utf8');
 const HEALTH = JSON.parse(read('health.json'));
 const HISTORY = fs.existsSync(`${OUT}/history.json`) ? JSON.parse(read('history.json')) : [];
 const CODE_IDX = Object.fromEntries(HEALTH.checks.map((c, i) => [c.code, i]));
+const SCORES = (HEALTH.scores && HEALTH.scores.byOrg) || { sbu: {}, xbu: {} };
+const r2 = v => Math.round(v * 100) / 100;
+// Field Health measures, positional (app.js decodeFh reads the same order)
+const fhPack = h => (h ? [h.M, h.O, r2(h.Q), r2(h.R), r2(h.S), h.T, h.U, h.V, h.W, h.X, h.Y, h.yAtLeast ? 1 : 0,
+  h.flows, h.formulas, h.layouts, h.other, h.reports, h.formula ? 1 : 0, h.checkbox ? 1 : 0, h.required ? 1 : 0] : 0);
 
 function packOrg(id) {
   const S = JSON.parse(read(`${id}_tech.json`));
@@ -30,7 +35,7 @@ function packOrg(id) {
       const flags = (f.req ? 1 : 0) | (f.uniq ? 2 : 0) | (f.extId ? 4 : 0) | (f.custom ? 8 : 0) | (f.measurable ? 16 : 0);
       const x = [f.name, f.label, f.type, f.kind || '', f.len || 0, flags, f.filled == null ? -1 : f.filled, f.desc || '', f.help || '',
         f.created || '', f.createdBy || '', f.modified || '', f.modifiedBy || '', (f.formula || '').length, f.picks || 0, f.ref && f.ref.length ? f.ref : 0,
-        f.lastRecord || '', f.lastChange || ''];
+        f.lastRecord || '', f.lastChange || '', fhPack(f.fh), SCORES[id][o.api + '.' + f.name] || 0];
       let n = x.length; while (n > 6 && !x[n - 1]) n--;
       return x.slice(0, n);
     }) };
@@ -48,6 +53,7 @@ function packOrg(id) {
 const prev = HISTORY.length > 1 ? HISTORY[HISTORY.length - 2] : null;
 const payload = {
   generated: HEALTH.generated, checks: HEALTH.checks, summary: HEALTH.summary,
+  model: HEALTH.model || null, scoreLists: (HEALTH.scores && HEALTH.scores.lists) || { band: [], cls: [], action: [] },
   prev: prev ? { date: prev.date, counts: prev.counts, stats: prev.stats } : null,
   findings: HEALTH.findings.map(f => [CODE_IDX[f.check], f.org, f.obj, f.field, f.detail]),
   orgs: ['sbu', 'xbu'].map(packOrg),
@@ -101,6 +107,32 @@ details.chk[open]>summary::before{content:'▾'}
 .robj code{font-family:var(--mono);color:var(--faint)}
 .type{border-color:var(--line);color:var(--ink2)}
 .kv .v .sep+b{margin-left:0}
+/* field health bands: same order and meaning as the workbooks */
+.band{font-size:10px;letter-spacing:.03em;text-transform:uppercase;font-weight:800;border-radius:5px;padding:2px 7px;border:1px solid;white-space:nowrap;background:var(--surface)}
+.band.b-healthy{color:var(--uniq);border-color:var(--uniq)}
+.band.b-monitor{color:var(--accent-ink);border-color:var(--accent)}
+.band.b-review{color:var(--diff);border-color:var(--diff)}
+.band.b-debt{color:var(--surface);background:var(--diff);border-color:var(--diff)}
+.band.b-retire{color:var(--surface);background:var(--reqhl);border-color:var(--reqhl)}
+.band.b-new,.band.b-insufficient{color:var(--muted);border-color:var(--line)}
+.fhscore{font-size:20px;font-weight:750;font-variant-numeric:tabular-nums;margin-right:6px}
+.fhrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fhgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin-top:6px;font-size:12px}
+.fhgrid div{display:flex;flex-direction:column}
+.fhgrid b{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700}
+.fhsum{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;margin-top:18px;box-shadow:var(--shadow)}
+.fhsum h2{margin:0 0 4px;font-size:18px;font-weight:680}
+.fhsum .sub{font-size:13px;color:var(--muted);margin:0 0 12px}
+.fhbar{display:flex;height:22px;border-radius:6px;overflow:hidden;border:1px solid var(--line2);margin:4px 0 6px}
+.fhbar span{display:block;height:100%}
+.fhlegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink2)}
+.fhlegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.fhorg{margin:10px 0 14px}
+.fhorg-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650}
+.model{font-size:12.5px;color:var(--ink2)}
+.model table{border-collapse:collapse;margin:8px 0}
+.model td,.model th{border-bottom:1px solid var(--line2);padding:4px 10px 4px 0;text-align:left;vertical-align:top}
+.model th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
 @media (max-width:640px){.tiles{grid-template-columns:1fr}.chk-n{display:none}}
 `;
 
@@ -128,6 +160,7 @@ ${EXTRA_CSS}
     objects close to Salesforce limits, retired automation still running, and installed apps that store no data.
     Open any check to see the fields, why it matters and what to do. <b>Open</b> jumps to that field in the dictionary.</p>
     <div class="csums"></div>
+    <section class="fhsum" id="fhSummary"></section>
     <div class="cfilt" role="group" aria-label="Filter findings">
       <div class="fld"><label for="hOrg">Org</label><select class="ctl" id="hOrg">
         <option value="all">Both orgs</option><option value="sbu">SBU only — POS Nation</option><option value="xbu">XBU only — Rain POS</option></select></div>
@@ -167,6 +200,10 @@ ${EXTRA_CSS}
           </div>
         </div>
       </div>
+      <div class="fld"><label for="fBand">Health band</label><select class="ctl" id="fBand">
+        <option value="all">All bands</option><option>Healthy</option><option>Monitor</option><option>Review</option>
+        <option>Likely Debt</option><option>Retire</option><option>Too New - Provisional</option><option>Insufficient Data</option>
+        <option value="none">Not scored</option></select></div>
       <div class="fld"><label for="fLabel">Field label contains</label><input class="ctl" id="fLabel" type="search" placeholder="e.g. status" autocomplete="off"></div>
       <button class="clearall" type="button" id="clearAll" hidden>Clear filters</button>
     </div>

@@ -19,7 +19,20 @@ function decodeField(x) {
   return { name: x[0], label: x[1], type: x[2], kind: x[3] || '', len: x[4] || 0, flags: x[5] || 0,
     filled: x[6] == null || x[6] < 0 ? null : x[6], desc: x[7] || '', help: x[8] || '',
     created: x[9] || '', createdBy: x[10] || '', modified: x[11] || '', modifiedBy: x[12] || '',
-    formulaLen: x[13] || 0, picks: x[14] || 0, ref: x[15] || [], lastRecord: x[16] || '', lastChange: x[17] || '' };
+    formulaLen: x[13] || 0, picks: x[14] || 0, ref: x[15] || [], lastRecord: x[16] || '', lastChange: x[17] || '',
+    fh: decodeFh(x[18]), sc: decodeScore(x[19]) };
+}
+// Field Health measures and score, in the order build_health_html.js packs them
+function decodeFh(a) {
+  if (!a) return null;
+  const k = ['M', 'O', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'yAtLeast', 'flows', 'formulas', 'layouts', 'other', 'reports', 'formula', 'checkbox', 'required'];
+  const o = {}; k.forEach((n, i) => { o[n] = a[i]; }); return o;
+}
+function decodeScore(a) {
+  if (!a) return null;
+  const L = P.scoreLists;
+  return { score: a[0], band: L.band[a[1]], cls: L.cls[a[2]], action: L.action[a[3]],
+    parts: { Population: a[4], Recency: a[5], Trend: a[6], Information: a[7], Integration: a[8], Documentation: a[9] } };
 }
 const ORGS = {};
 for (const o of P.orgs) ORGS[o.id] = { meta: o, objs: o.objs.map(t => ({ api: t.a, label: t.l, custom: !!t.c, desc: t.d || '',
@@ -96,7 +109,7 @@ function scoreCard(id) {
     esc(s.org.edition) + '</span></div><div class="tiles">' +
     tile(doc + '%', 'custom fields documented', trend(doc, prev ? pct(prev.documented, prev.customFields) : null, true, ' pts'), doc < 50 ? 'warn' : '') +
     tile(name + '%', 'labels match API names', trend(name, prev ? pct(prev.nameOk, prev.nameChecked) : null, true, ' pts')) +
-    tile(nf(s.empty), 'custom fields never filled in', trend(s.empty, prev ? prev.empty : null, false), s.empty ? 'warn' : '') +
+    tile(nf(s.retire || 0), 'retire candidates (Field Health)', trend(s.retire || 0, prev && prev.retire != null ? prev.retire : null, false), s.retire ? 'warn' : '') +
     tile(nf(high), 'high-priority findings', trend(high, highPrev, false), high ? 'bad' : '') +
     '</div><div class="csum-t">' + nf(s.objects) + ' objects · ' + nf(s.fields) + ' fields · ' + nf(s.customFields) +
     ' custom fields built in-house · ' + nf(s.packages) + ' installed packages · scanned ' + esc(String(s.org.scanned).slice(0, 10)) + '</div></div>';
@@ -158,7 +171,7 @@ function renderHealth() {
   sel.innerHTML = '<option value="all">All objects (' + objs.length + ')</option>' + objs.map(a => '<option value="' + esc(a) + '">' +
     esc(objLabel(a)) + (objLabel(a) !== a ? ' (' + esc(a) + ')' : '') + ' — ' + nf(objCount[a]) + '</option>').join('');
   sel.value = hf.obj;
-  document.querySelectorAll('.csum[data-org]').forEach(c => { c.hidden = hf.org !== 'all' && c.dataset.org !== hf.org; });
+  document.querySelectorAll('.csum[data-org], .fhorg[data-org]').forEach(c => { c.hidden = hf.org !== 'all' && c.dataset.org !== hf.org; });
   $('hClear').hidden = hf.org === 'all' && hf.cat === 'all' && hf.sev === 'all' && hf.obj === 'all' && !hf.q;
 
   let html = '';
@@ -185,7 +198,7 @@ function renderHealth() {
 // ---------------------------------------------------------------- explorer
 const PINNED = ['Account', 'Contact', 'Lead', 'Opportunity', 'Case', 'Merchant_ID__c', 'Residual_Payment__c', 'POS_Software__c', 'Quote'];
 const PIN_RANK = {}; PINNED.forEach((a, i) => { PIN_RANK[a] = i; });
-const st = { bu: 'both', obj: null, q: '', issues: new Set(), origin: 'all', labelQ: '' };
+const st = { bu: 'both', obj: null, q: '', issues: new Set(), origin: 'all', labelQ: '', band: 'all' };
 let VIEW = [];
 function buildView() {
   const rows = st.bu === 'both' ? COMBINED : orgView(st.bu);
@@ -201,6 +214,10 @@ function objFindings(o) { const out = []; for (const id of o.orgs) if (orgsIn().
 function fieldPasses(o, f, ql) {
   if (st.origin !== 'all' && originOf(f) !== st.origin) return false;
   if (st.labelQ && !(f.label || '').toLowerCase().includes(st.labelQ)) return false;
+  if (st.band !== 'all') {   // either org's score can match in the merged view
+    const bands = f.orgs.filter(id => orgsIn().includes(id)).map(id => (f.v[id].sc ? f.v[id].sc.band : 'none'));
+    if (!bands.includes(st.band)) return false;
+  }
   if (st.issues.size) {
     const codes = fieldFindings(o, f).map(x => x.check.code);
     if (![...st.issues].some(c => (c === '__any' ? codes.length : codes.includes(c)))) return false;
@@ -211,7 +228,7 @@ function fieldPasses(o, f, ql) {
   }
   return true;
 }
-const anyFieldFilter = () => st.issues.size > 0 || st.origin !== 'all' || !!st.labelQ;
+const anyFieldFilter = () => st.issues.size > 0 || st.origin !== 'all' || !!st.labelQ || st.band !== 'all';
 function visibleObjects() {
   const ql = st.q.toLowerCase(), filt = anyFieldFilter(), out = [];
   for (const o of VIEW) {
@@ -284,11 +301,84 @@ function fieldCard(o, f) {
     (f.orgs.some(id => f.v[id].lastRecord || f.v[id].lastChange) ? kv('Last populated', perOrg(o, f, id => lastPopulated(f.v[id]))) : '') +
     (og !== 'standard' ? kv('Created', perOrg(o, f, id => who(f.v[id].created, f.v[id].createdBy) || '—')) +
       kv('Setup changed', perOrg(o, f, id => who(f.v[id].modified, f.v[id].modifiedBy) || '—')) : '') +
+    (f.orgs.some(id => f.v[id].sc) ? kv('Health score', perOrg(o, f, id => healthLine(f.v[id]))) + fhDetails(o, f) : '') +
     issues +
     kv('Description', f.desc ? '<span class="desc">' + esc(f.desc) + '</span>' : (og === 'custom' ? '<span class="missing">Missing</span>' : '')) +
     kv('Help Text', v0.help ? '<span class="help">' + esc(v0.help) + '</span>' : '') +
     '</div></div>';
 }
+// ---- Field Health (scoring model of the "Field Health Analysis" workbooks; see fieldscore.js) ----
+const BAND_ORDER = ['Healthy', 'Monitor', 'Review', 'Likely Debt', 'Retire', 'Too New - Provisional', 'Insufficient Data'];
+const BAND_CLASS = { Healthy: 'b-healthy', Monitor: 'b-monitor', Review: 'b-review', 'Likely Debt': 'b-debt', Retire: 'b-retire',
+  'Too New - Provisional': 'b-new', 'Insufficient Data': 'b-insufficient' };
+const BAND_COLOR = { Healthy: 'var(--uniq)', Monitor: 'var(--accent)', Review: '#d9a441', 'Likely Debt': 'var(--diff)', Retire: 'var(--reqhl)',
+  'Too New - Provisional': 'var(--line)', 'Insufficient Data': 'var(--line2)' };
+const bandChip = b => '<span class="band ' + (BAND_CLASS[b] || '') + '">' + esc(b) + '</span>';
+function healthLine(v) {
+  if (!v || !v.sc) return '<span class="faint">not scored</span>';
+  const s = v.sc;
+  return '<span class="fhrow"><span class="fhscore">' + s.score + '</span>' + bandChip(s.band) + '<span>' + esc(s.cls) +
+    '</span><span class="faint">· ' + esc(s.action) + '</span></span>';
+}
+let fhN = 0;
+function fhDetails(o, f) {
+  const ids = f.orgs.filter(id => orgsIn().includes(id) && f.v[id].fh);
+  if (!ids.length) return '';
+  const pc = v => (v == null ? '—' : (v > 0 && v < 1 ? v.toFixed(2) : String(Math.round(v))) + '%');
+  const part = v => (v == null ? 'n/a' : (Math.round(v * 100) / 100).toFixed(2));
+  const grid = id => {
+    const h = f.v[id].fh, s = f.v[id].sc, cell = (k, v) => '<div><b>' + k + '</b>' + v + '</div>';
+    const pop = h.checkbox ? '% TRUE' : '% populated';
+    return '<div class="fhgrid">' +
+      cell(pop + ' since creation', pc(h.Q) + ' <span class="faint">(' + nf(h.M) + ' records)</span>') +
+      cell(pop + ' last 90 days', pc(h.R)) + cell(pop + ' last 365 days', pc(h.S)) +
+      cell('First / last populated', (h.T || '—') + ' → ' + (h.U || '—')) +
+      cell('Months since populated', h.V >= 999 ? 'never' : nf(h.V)) +
+      cell('Adoption onset', (h.W || '—') + (h.X != null ? ' <span class="faint">(' + nf(h.X) + ' days after creation)</span>' : '')) +
+      cell('Distinct values', h.Y == null ? 'unknown' : (h.yAtLeast ? '5+' : nf(h.Y))) +
+      cell('Eligible records', nf(h.O)) +
+      cell('References', nf(h.flows) + ' flows · ' + nf(h.formulas) + ' formulas · ' + nf(h.layouts) + ' layouts · ' + nf(h.other) + ' other' +
+        (h.reports ? ' <span class="faint">(' + nf(h.reports) + ' reports)</span>' : '')) +
+      (s ? Object.entries(s.parts).map(([k, v]) => cell(k + ' score', part(v))).join('') : '') + '</div>';
+  };
+  const id = 'fh' + (++fhN);
+  return '<div class="kv"><span class="k"></span><span class="v" style="flex:1;min-width:0"><button class="toggle" type="button" onclick="var e=document.getElementById(\'' + id +
+    '\');e.hidden=!e.hidden">score details</button><div id="' + id + '" hidden>' +
+    ids.map(o2 => (ids.length > 1 ? '<div style="margin-top:8px"><b class="dorg ' + o2 + '">' + o2.toUpperCase() + '</b></div>' : '') + grid(o2)).join('') +
+    '</div></span></div>';
+}
+function bandCounts(o, id) {
+  const c = {}; let n = 0;
+  for (const f of o.fields) { const v = f.v[id]; if (v && v.sc) { c[v.sc.band] = (c[v.sc.band] || 0) + 1; n++; } }
+  return n ? BAND_ORDER.filter(b => c[b]).map(b => bandChip(b) + ' ' + nf(c[b])).join(' ') : '';
+}
+function renderFhSummary() {
+  const el = $('fhSummary'), M = P.model;
+  if (!M) { el.hidden = true; return; }
+  const bar = (bands, total) => '<div class="fhbar">' + BAND_ORDER.filter(b => bands[b]).map(b =>
+    '<span style="width:' + (100 * bands[b] / total) + '%;background:' + BAND_COLOR[b] + '" title="' + esc(b) + ': ' + nf(bands[b]) + '"></span>').join('') + '</div>';
+  const orgs = ORDER.map(id => {
+    const s = P.summary[id], b = s.ownBands || {}, n = s.ownScored || 0;
+    return '<div class="fhorg" data-org="' + id + '"><div class="fhorg-h">' + orgBadge([id]) + nf(n) + ' custom fields built in-house, scored</div>' +
+      bar(b, n || 1) + '<div class="fhlegend">' + BAND_ORDER.filter(x => b[x]).map(x => '<span><i style="background:' + BAND_COLOR[x] + '"></i>' +
+      esc(x) + ' ' + nf(b[x]) + ' <span class="faint">(' + pct(b[x], n) + '%)</span></span>').join('') + '</div></div>';
+  }).join('');
+  const w = M.weights;
+  el.innerHTML = '<h2>Field health scores</h2><p class="sub">Every measured field gets a 0–100 score from the same model as the Field Health Analysis ' +
+    'workbooks. Bars show the fields each org built itself; standard and managed-package fields are scored too, in the dictionary.</p>' + orgs +
+    '<details class="legend model"><summary>How the score works</summary><table><tr><th>Component</th><th>Weight</th><th>Measures</th></tr>' +
+    '<tr><td>Population</td><td>' + w.population + '</td><td>% of records since the field was created that carry a value (% TRUE for checkboxes), log-scaled to ' + M.populationFullCredit + '%</td></tr>' +
+    '<tr><td>Recency</td><td>' + w.recency + '</td><td>Months since last populated; zero credit at ' + M.recencyZeroMonths + ' months</td></tr>' +
+    '<tr><td>Trend</td><td>' + w.trend + '</td><td>Last-90-day rate vs. rate since creation (n/a under ' + M.trendWindowDays + ' days old)</td></tr>' +
+    '<tr><td>Information</td><td>' + w.info + '</td><td>Distinct values; full credit at ' + M.infoFullDistinct + '</td></tr>' +
+    '<tr><td>Integration</td><td>' + w.integration + '</td><td>References from flows, formulas, page layouts, Apex, reports…; full credit at ' + M.integrationFullRefs + '</td></tr>' +
+    '<tr><td>Documentation</td><td>' + w.documentation + '</td><td>Help text and description present</td></tr></table>' +
+    '<p>Formulas and roll-ups skip Population, Recency and Trend (always populated) and the score renormalises over the rest. ' +
+    'Bands: Healthy ≥ ' + M.bands.Healthy + ', Monitor ≥ ' + M.bands.Monitor + ', Review ≥ ' + M.bands.Review + ', Likely Debt ≥ ' + M.bands['Likely Debt'] +
+    ', else Retire. Fields under ' + M.graceDays + ' days old are “Too New - Provisional”; under ' + M.minEligible + ' eligible records, “Insufficient Data”. ' +
+    'Dormant after ' + M.dormantMonths + ' months unpopulated; Active at ' + M.activePct + '%+ since creation; Growing when the last-90-day rate is ' + M.growingMultiple + '× that.</p></details>';
+}
+
 function autoSummary(o, id) {
   const a = o.v[id].auto || {}, parts = [];
   const p = (n, w) => { if (n) parts.push(nf(n) + ' ' + w + (n === 1 ? '' : 's')); };
@@ -320,6 +410,7 @@ function renderMain(vis) {
         (o.v[id].newest ? ' <span class="faint">· newest created ' + esc(o.v[id].newest) + '</span>' : ''))) +
       line('Limits', id => limitSummary(o, id)) +
       line('Automation', id => autoSummary(o, id)) +
+      line('Field health', id => bandCounts(o, id)) +
       (o.custom ? line('Created', id => (o.v[id].created ? esc(o.v[id].created) + (o.v[id].createdBy ? ' · ' + esc(o.v[id].createdBy) : '') : '')) : '') +
       kv('Description', od ? '<span class="desc">' + esc(od) + '</span>' : (o.custom && !pkgOf(o.api) ? '<span class="missing">Missing</span>' : '')) +
       (ofind.length ? '<div class="kv"><span class="k">Findings</span><span class="v ilist">' + ofind.sort((a, b) => SEV_RANK[a.check.sev] - SEV_RANK[b.check.sev]).map(x =>
@@ -400,10 +491,11 @@ $('fBu').addEventListener('change', e => { st.bu = e.target.value; renderDict();
 $('fObj').addEventListener('change', e => { st.obj = e.target.value || null; renderDict(); });
 $('fOrigin').addEventListener('change', e => { st.origin = e.target.value; renderDict(); });
 $('fLabel').addEventListener('input', e => { st.labelQ = e.target.value.trim().toLowerCase(); renderDict(); });
+$('fBand').addEventListener('change', e => { st.band = e.target.value; renderDict(); });
 $('objlist').addEventListener('click', e => { const b = e.target.closest('.obj'); if (!b) return; st.obj = b.dataset.api; renderDict(); });
 $('clearAll').addEventListener('click', () => {
-  Object.assign(st, { bu: 'both', obj: null, q: '', origin: 'all', labelQ: '' }); st.issues.clear();
-  $('q').value = ''; $('fBu').value = 'both'; $('fOrigin').value = 'all'; $('fLabel').value = '';
+  Object.assign(st, { bu: 'both', obj: null, q: '', origin: 'all', labelQ: '', band: 'all' }); st.issues.clear();
+  $('q').value = ''; $('fBu').value = 'both'; $('fOrigin').value = 'all'; $('fLabel').value = ''; $('fBand').value = 'all';
   $('popIss').querySelectorAll('input').forEach(c => { c.checked = c.id === 'cbIssAll'; });
   syncIssueSummary(); renderDict();
 });
@@ -430,6 +522,7 @@ document.querySelectorAll('.themeBtn').forEach(b => b.addEventListener('click', 
 }));
 
 document.querySelector('.csums').innerHTML = ORDER.map(scoreCard).join('');
+renderFhSummary();
 $('hCat').innerHTML = '<option value="all">All categories</option>' + CATS.map(c => '<option>' + esc(c) + '</option>').join('');
 renderHealth();
 syncIssueSummary();
