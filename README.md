@@ -58,6 +58,7 @@ last 90 days are exempt from the usage checks.
 
 | File | |
 |---|---|
+| `redact.js` | blanks credentials found in formulas, descriptions and help text |
 | `scan_tech.js` | per org: describes, CustomField/CustomObject provenance, EntityLimit, flows, triggers, validation and workflow rules, packages, fill rates → `<org>_tech.json` |
 | `analyze.js` | the checks → `health.json`; appends the run's counts to `history.json` |
 | `build_health_html.js` | builds the page from the above, `style.css` and `app.js` |
