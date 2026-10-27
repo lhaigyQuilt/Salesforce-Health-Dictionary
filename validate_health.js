@@ -30,7 +30,7 @@ if (P) {
 }
 const ids = ['healthView', 'appView', 'toDict', 'toHealth', 'hOrg', 'hCat', 'hSev', 'hObj', 'hQ', 'hClear', 'hBody',
   'q', 'fBu', 'fObj', 'fOrigin', 'popIss', 'btnIss', 'cbIssAll', 'fLabel', 'clearAll', 'objlist', 'main', 'stats', 'orgsub',
-  'fBand', 'fhSummary'];
+  'fBand', 'fhSummary', 'fPctMin', 'fPctMax', 'fPctBasis'];
 const dup = ids.filter(id => (pg.match(new RegExp('id="' + id + '"', 'g')) || []).length !== 1);
 dup.length ? fail('ids missing or duplicated: ' + dup.join(', ')) : ok('all ' + ids.length + ' element ids present once');
 const root = pg.slice(pg.indexOf(':root{'), pg.indexOf('@media (prefers-color-scheme:dark)'));

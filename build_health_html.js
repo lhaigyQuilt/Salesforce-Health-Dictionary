@@ -133,6 +133,9 @@ details.chk[open]>summary::before{content:'▾'}
 .model table{border-collapse:collapse;margin:8px 0}
 .model td,.model th{border-bottom:1px solid var(--line2);padding:4px 10px 4px 0;text-align:left;vertical-align:top}
 .model th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+.rng{display:flex;align-items:center;gap:6px}
+.rng span{font-size:12px;color:var(--muted)}
+.rng input{min-width:0}
 @media (max-width:640px){.tiles{grid-template-columns:1fr}.chk-n{display:none}}
 `;
 
@@ -204,6 +207,14 @@ ${EXTRA_CSS}
         <option value="all">All bands</option><option>Healthy</option><option>Monitor</option><option>Review</option>
         <option>Likely Debt</option><option>Retire</option><option>Too New - Provisional</option><option>Insufficient Data</option>
         <option value="none">Not scored</option></select></div>
+      <div class="fld"><span class="lbl" id="lblPct">Filled in %</span>
+        <div class="rng" role="group" aria-labelledby="lblPct">
+          <input class="ctl" id="fPctMin" type="number" min="0" max="100" step="any" placeholder="from 0" aria-label="Filled in, from percent">
+          <span>to</span>
+          <input class="ctl" id="fPctMax" type="number" min="0" max="100" step="any" placeholder="100" aria-label="Filled in, to percent">
+        </div>
+        <select class="ctl" id="fPctBasis" aria-label="Percentage of">
+          <option value="all">of all records</option><option value="since">of records since the field was created</option></select></div>
       <div class="fld"><label for="fLabel">Field label contains</label><input class="ctl" id="fLabel" type="search" placeholder="e.g. status" autocomplete="off"></div>
       <button class="clearall" type="button" id="clearAll" hidden>Clear filters</button>
     </div>

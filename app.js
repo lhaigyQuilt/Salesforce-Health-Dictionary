@@ -198,7 +198,8 @@ function renderHealth() {
 // ---------------------------------------------------------------- explorer
 const PINNED = ['Account', 'Contact', 'Lead', 'Opportunity', 'Case', 'Merchant_ID__c', 'Residual_Payment__c', 'POS_Software__c', 'Quote'];
 const PIN_RANK = {}; PINNED.forEach((a, i) => { PIN_RANK[a] = i; });
-const st = { bu: 'both', obj: null, q: '', issues: new Set(), origin: 'all', labelQ: '', band: 'all' };
+const st = { bu: 'both', obj: null, q: '', issues: new Set(), origin: 'all', labelQ: '', band: 'all',
+  pctMin: null, pctMax: null, pctBasis: 'all' };
 let VIEW = [];
 function buildView() {
   const rows = st.bu === 'both' ? COMBINED : orgView(st.bu);
@@ -214,6 +215,15 @@ function objFindings(o) { const out = []; for (const id of o.orgs) if (orgsIn().
 function fieldPasses(o, f, ql) {
   if (st.origin !== 'all' && originOf(f) !== st.origin) return false;
   if (st.labelQ && !(f.label || '').toLowerCase().includes(st.labelQ)) return false;
+  if (st.pctMin != null || st.pctMax != null) {
+    // % of all records (the "Filled in" row), or % since creation (Field Health); unmeasured fields drop out
+    const pcts = f.orgs.filter(id => orgsIn().includes(id)).map(id => {
+      const v = f.v[id], recs = o.v[id] && o.v[id].records;
+      if (st.pctBasis === 'since') return v.fh ? v.fh.Q : null;
+      return v.filled != null && recs ? 100 * v.filled / recs : null;
+    }).filter(p => p != null);
+    if (!pcts.some(p => (st.pctMin == null || p >= st.pctMin) && (st.pctMax == null || p <= st.pctMax))) return false;
+  }
   if (st.band !== 'all') {   // either org's score can match in the merged view
     const bands = f.orgs.filter(id => orgsIn().includes(id)).map(id => (f.v[id].sc ? f.v[id].sc.band : 'none'));
     if (!bands.includes(st.band)) return false;
@@ -228,7 +238,8 @@ function fieldPasses(o, f, ql) {
   }
   return true;
 }
-const anyFieldFilter = () => st.issues.size > 0 || st.origin !== 'all' || !!st.labelQ || st.band !== 'all';
+const anyFieldFilter = () => st.issues.size > 0 || st.origin !== 'all' || !!st.labelQ || st.band !== 'all' ||
+  st.pctMin != null || st.pctMax != null;
 function visibleObjects() {
   const ql = st.q.toLowerCase(), filt = anyFieldFilter(), out = [];
   for (const o of VIEW) {
@@ -492,10 +503,15 @@ $('fObj').addEventListener('change', e => { st.obj = e.target.value || null; ren
 $('fOrigin').addEventListener('change', e => { st.origin = e.target.value; renderDict(); });
 $('fLabel').addEventListener('input', e => { st.labelQ = e.target.value.trim().toLowerCase(); renderDict(); });
 $('fBand').addEventListener('change', e => { st.band = e.target.value; renderDict(); });
+const pctVal = el => (el.value.trim() === '' || isNaN(Number(el.value)) ? null : Number(el.value));
+$('fPctMin').addEventListener('input', e => { st.pctMin = pctVal(e.target); renderDict(); });
+$('fPctMax').addEventListener('input', e => { st.pctMax = pctVal(e.target); renderDict(); });
+$('fPctBasis').addEventListener('change', e => { st.pctBasis = e.target.value; renderDict(); });
 $('objlist').addEventListener('click', e => { const b = e.target.closest('.obj'); if (!b) return; st.obj = b.dataset.api; renderDict(); });
 $('clearAll').addEventListener('click', () => {
-  Object.assign(st, { bu: 'both', obj: null, q: '', origin: 'all', labelQ: '', band: 'all' }); st.issues.clear();
+  Object.assign(st, { bu: 'both', obj: null, q: '', origin: 'all', labelQ: '', band: 'all', pctMin: null, pctMax: null, pctBasis: 'all' }); st.issues.clear();
   $('q').value = ''; $('fBu').value = 'both'; $('fOrigin').value = 'all'; $('fLabel').value = ''; $('fBand').value = 'all';
+  $('fPctMin').value = ''; $('fPctMax').value = ''; $('fPctBasis').value = 'all';
   $('popIss').querySelectorAll('input').forEach(c => { c.checked = c.id === 'cbIssAll'; });
   syncIssueSummary(); renderDict();
 });
