@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    { "src": "salesforce-health-dictionary.html", "use": "@vercel/static" },
+    { "src": "health.json", "use": "@vercel/static" },
+    { "src": "history.json", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/salesforce-health-dictionary.html" }
+  ]
+}
