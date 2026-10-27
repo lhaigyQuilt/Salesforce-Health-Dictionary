@@ -40,6 +40,9 @@ const CHECKS = [
   { code: 'USE_RARE', cat: 'Usage', sev: 'medium', title: 'Custom field is filled in on under 1% of records',
     why: 'Rarely used fields are often abandoned or only set by a one-off import.',
     fix: 'Check whether the field is still part of a process.' },
+  { code: 'USE_STALE', cat: 'Usage', sev: 'medium', title: 'Custom field not populated on any new record in over a year',
+    why: 'The object still gets new records, but none created in the last 12+ months has a value here (and no tracked change either), so the process that filled it has likely stopped. Fields without history tracking that are only ever set on older records can show up here too.',
+    fix: 'Confirm the field is retired, then remove it from layouts and archive or delete it.' },
   { code: 'USE_EMPTY_OBJECT', cat: 'Usage', sev: 'medium', title: 'Custom object has no records',
     why: 'An object nobody stores data in is usually unfinished or abandoned, or belongs to an unused app.',
     fix: 'Confirm it is not new or awaiting a launch, then delete it or uninstall its package.' },
@@ -150,6 +153,11 @@ for (const id of ['sbu', 'xbu']) {
         if (f.filled === 0) { if (old) { st.empty++; add('USE_EMPTY', o.api, f.name, '0 of ' + o.records.toLocaleString('en-US') + ' records'); } }
         else if (f.filled / o.records < 0.01 && old) add('USE_RARE', o.api, f.name,
           f.filled.toLocaleString('en-US') + ' of ' + o.records.toLocaleString('en-US') + ' records (' + (100 * f.filled / o.records).toFixed(2) + '%)');
+        // stale: nothing new carries a value for a year, yet the object itself is still getting records
+        const last = [f.lastRecord, f.lastChange].filter(Boolean).sort().pop();
+        if (f.filled > 0 && last && daysBefore(last, scanned) > 365 && o.newestRecord && daysBefore(o.newestRecord, scanned) <= 90)
+          add('USE_STALE', o.api, f.name, f.lastChange && f.lastChange === last
+            ? 'last tracked change ' + last : 'newest record with a value was created ' + last);
       }
     }
   }

@@ -34,6 +34,7 @@ fields are left out because they can't be edited.
 | | API name looks like a copy or second version (`_2`, `_v2`, `_New`, `_Copy`…) | Low |
 | Usage | Custom field is never filled in | High |
 | | Custom field is filled in on under 1% of records | Medium |
+| | Custom field not populated on any new record in over a year (while the object still gets new records) | Medium |
 | | Custom object has no records | Medium |
 | Limits | Object at 80%+ of its custom field / roll-up / relationship limit | High |
 | | Formula over 3,000 characters (limit 3,900) | Medium |
@@ -59,6 +60,14 @@ They run on every custom object plus the key standard objects listed in `scan_te
 (`KEY_OBJECTS`). Checkboxes (never empty), formulas, roll-ups, auto numbers and long text
 areas (Salesforce can't count them) aren't measured. Fields and objects created in the
 last 90 days are exempt from the usage checks.
+
+**Last populated.** Salesforce keeps no "last set" date per field, so for each custom field
+the org built that has data, the scan records two signals: the `CreatedDate` of the newest
+record holding a value (`WHERE field != null ORDER BY CreatedDate DESC LIMIT 1`), and — if
+Field History Tracking is on for the field — the newest tracked change. A value added later
+to an older record is only caught by the second. The stale check uses whichever is newer,
+and only fires when the object itself had a record created in the last 90 days. This adds
+roughly 1,400 queries per org (worst case ~9 s each on Case) to the monthly run.
 
 ## Files
 

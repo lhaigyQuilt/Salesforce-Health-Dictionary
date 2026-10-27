@@ -180,6 +180,40 @@ const EXCL = /(Share|History|Feed|ChangeEvent|Tag|Rule|RuleShare)$|__e$/;
   });
   console.log('fill rates for', Object.keys(fills).length, 'objects |', fillQueries, 'queries,', fillErrors, 'fields unmeasurable');
 
+  // ---- last populated ----
+  // Salesforce keeps no "last set" date per field. Two signals instead, for the org's own
+  // custom fields that have data: the newest record holding a value (by CreatedDate), and,
+  // where Field History Tracking is on, the newest tracked change to the field.
+  const own = f => f.custom && f.name.split('__').length < 3;
+  const sobjects = new Set((await rest('/services/data/' + API + '/sobjects')).sobjects.map(s => s.name));
+  // OpportunityHistory is stage history with no Field column, so FieldHistory is tried
+  // first and each candidate in turn until one answers
+  const historyOf = api => [api.replace(/__c$/, '__History'), api + 'FieldHistory', api + 'History']
+    .filter(n => n !== api && sobjects.has(n));
+  const LAST = {}, NEWEST = {}, HIST = {};
+  let lastQueries = 0, lastErrors = 0;
+  const withData = described.filter(d => fills[d.name] && fills[d.name].records > 0 &&
+    d.fields.some(f => own(f) && measurable(f) && fills[d.name].fields[f.name] > 0));
+  await pool(withData, 4, async d => {
+    const newest = q => rest(soql(q)).then(r => (r.records[0] ? day(r.records[0].CreatedDate) : '')).catch(() => null);
+    NEWEST[d.name] = await newest('SELECT CreatedDate FROM ' + d.name + ' ORDER BY CreatedDate DESC LIMIT 1');
+    for (const h of historyOf(d.name)) {
+      try {
+        for (const r of (await rest(soql('SELECT Field, MAX(CreatedDate) d FROM ' + h + ' GROUP BY Field'))).records)
+          HIST[d.name + '.' + r.Field] = day(r.d);
+        break;
+      } catch { /* wrong table, or too large to aggregate; the record date still stands */ }
+    }
+    const names = d.fields.filter(f => own(f) && measurable(f) && fills[d.name].fields[f.name] > 0).map(f => f.name);
+    await pool(names, 3, async n => {
+      lastQueries++;
+      const v = await newest('SELECT CreatedDate FROM ' + d.name + ' WHERE ' + n + ' != null ORDER BY CreatedDate DESC LIMIT 1');
+      if (v == null) lastErrors++; else LAST[d.name + '.' + n] = v;
+    });
+  });
+  console.log('last populated for', Object.keys(LAST).length, 'fields |', lastQueries, 'queries,', lastErrors, 'failed |',
+    Object.keys(HIST).length, 'field-history entries');
+
   // ---- assemble ----
   const kindOf = f => {
     if (f.autoNumber) return 'autonumber';
@@ -194,7 +228,7 @@ const EXCL = /(Share|History|Feed|ChangeEvent|Tag|Rule|RuleShare)$|__e$/;
     return {
       api: d.name, label: d.label, custom: !!d.custom,
       desc: co ? redact(co.desc).text : '', created: co ? co.created : '', createdBy: co ? co.createdBy : '',
-      records: fl ? fl.records : null, limits: LIM[d.name] || {},
+      records: fl ? fl.records : null, newestRecord: NEWEST[d.name] || '', limits: LIM[d.name] || {},
       fields: d.fields.map(f => {
         const cf = CF[d.name + '.' + f.name] || {};
         // credentials never reach the snapshot; what kind was found is kept for the SEC check
@@ -209,6 +243,7 @@ const EXCL = /(Share|History|Feed|ChangeEvent|Tag|Rule|RuleShare)$|__e$/;
           created: cf.created || '', createdBy: cf.createdBy || '', modified: cf.modified || '', modifiedBy: cf.modifiedBy || '',
           filled: fl && fl.fields[f.name] != null ? fl.fields[f.name] : (fl && fl.records === 0 ? 0 : null),
           measurable: !!(fl && measurable(f)),
+          lastRecord: LAST[d.name + '.' + f.name] || '', lastChange: HIST[d.name + '.' + f.name] || '',
         };
       }),
     };

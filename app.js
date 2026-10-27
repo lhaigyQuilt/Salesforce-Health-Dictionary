@@ -19,11 +19,11 @@ function decodeField(x) {
   return { name: x[0], label: x[1], type: x[2], kind: x[3] || '', len: x[4] || 0, flags: x[5] || 0,
     filled: x[6] == null || x[6] < 0 ? null : x[6], desc: x[7] || '', help: x[8] || '',
     created: x[9] || '', createdBy: x[10] || '', modified: x[11] || '', modifiedBy: x[12] || '',
-    formulaLen: x[13] || 0, picks: x[14] || 0, ref: x[15] || [] };
+    formulaLen: x[13] || 0, picks: x[14] || 0, ref: x[15] || [], lastRecord: x[16] || '', lastChange: x[17] || '' };
 }
 const ORGS = {};
 for (const o of P.orgs) ORGS[o.id] = { meta: o, objs: o.objs.map(t => ({ api: t.a, label: t.l, custom: !!t.c, desc: t.d || '',
-  records: t.r == null ? null : t.r, lim: t.lim || {}, created: t.cr || '', createdBy: t.cb || '', auto: t.au || {},
+  records: t.r == null ? null : t.r, newest: t.nr || '', lim: t.lim || {}, created: t.cr || '', createdBy: t.cb || '', auto: t.au || {},
   fields: t.f.map(decodeField) })) };
 
 // findings: [checkIndex, org, obj, field, detail]
@@ -247,6 +247,15 @@ function fillValue(o, id, f) {
   const p = 100 * v.filled / oo.records, shownPct = p > 0 && p < 1 ? p.toFixed(2) : String(Math.round(p));
   return shownPct + '% <span class="faint">(' + nf(v.filled) + ' of ' + nf(oo.records) + ')</span>';
 }
+// Salesforce keeps no per-field "last set" date: the scan records the newest record holding a
+// value, plus the newest Field History change when the field is tracked.
+function lastPopulated(v) {
+  if (!v || (!v.lastRecord && !v.lastChange)) return '—';
+  const parts = [];
+  if (v.lastRecord) parts.push(esc(v.lastRecord) + ' <span class="faint">(newest record with a value)</span>');
+  if (v.lastChange) parts.push(esc(v.lastChange) + ' <span class="faint">(last change, field history)</span>');
+  return parts.join(' · ');
+}
 function perOrg(o, f, fn) {
   const ids = f.orgs.filter(id => orgsIn().includes(id));
   const vals = ids.map(id => fn(id));
@@ -272,8 +281,9 @@ function fieldCard(o, f) {
     kv('Type', '<span class="type">' + esc(friendlyType(v0)) + '</span>' + (v0.ref.length ? ' <span class="faint">→ ' + esc(v0.ref.join(', ')) + '</span>' : '') +
       (v0.picks ? ' <span class="faint">· ' + v0.picks + ' active values</span>' : '') + (v0.formulaLen ? ' <span class="faint">· formula ' + nf(v0.formulaLen) + ' chars</span>' : '')) +
     kv('Filled in', perOrg(o, f, id => fillValue(o, id, f))) +
+    (f.orgs.some(id => f.v[id].lastRecord || f.v[id].lastChange) ? kv('Last populated', perOrg(o, f, id => lastPopulated(f.v[id]))) : '') +
     (og !== 'standard' ? kv('Created', perOrg(o, f, id => who(f.v[id].created, f.v[id].createdBy) || '—')) +
-      kv('Last changed', perOrg(o, f, id => who(f.v[id].modified, f.v[id].modifiedBy) || '—')) : '') +
+      kv('Setup changed', perOrg(o, f, id => who(f.v[id].modified, f.v[id].modifiedBy) || '—')) : '') +
     issues +
     kv('Description', f.desc ? '<span class="desc">' + esc(f.desc) + '</span>' : (og === 'custom' ? '<span class="missing">Missing</span>' : '')) +
     kv('Help Text', v0.help ? '<span class="help">' + esc(v0.help) + '</span>' : '') +
@@ -306,7 +316,8 @@ function renderMain(vis) {
     main.innerHTML = '<div class="mhead">' + (st.bu === 'both' ? orgBadge(o.orgs) : '') + '<h2>' + esc(o.label) + '</h2>' +
       (o.label !== o.api ? '<span class="mapi">' + esc(o.api) + '</span>' : '') + '<span class="tag ' + (o.custom ? 'custom' : 'std') + '">' + (o.custom ? 'Custom' : 'Standard') + '</span></div>' +
       '<div class="ometa">' +
-      line('Records', id => (o.v[id].records == null ? 'not measured' : nf(o.v[id].records))) +
+      line('Records', id => (o.v[id].records == null ? 'not measured' : nf(o.v[id].records) +
+        (o.v[id].newest ? ' <span class="faint">· newest created ' + esc(o.v[id].newest) + '</span>' : ''))) +
       line('Limits', id => limitSummary(o, id)) +
       line('Automation', id => autoSummary(o, id)) +
       (o.custom ? line('Created', id => (o.v[id].created ? esc(o.v[id].created) + (o.v[id].createdBy ? ' · ' + esc(o.v[id].createdBy) : '') : '')) : '') +

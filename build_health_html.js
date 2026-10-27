@@ -29,12 +29,14 @@ function packOrg(id) {
     const t = { a: o.api, l: o.label, c: o.custom ? 1 : 0, f: o.fields.map(f => {
       const flags = (f.req ? 1 : 0) | (f.uniq ? 2 : 0) | (f.extId ? 4 : 0) | (f.custom ? 8 : 0) | (f.measurable ? 16 : 0);
       const x = [f.name, f.label, f.type, f.kind || '', f.len || 0, flags, f.filled == null ? -1 : f.filled, f.desc || '', f.help || '',
-        f.created || '', f.createdBy || '', f.modified || '', f.modifiedBy || '', (f.formula || '').length, f.picks || 0, f.ref && f.ref.length ? f.ref : 0];
+        f.created || '', f.createdBy || '', f.modified || '', f.modifiedBy || '', (f.formula || '').length, f.picks || 0, f.ref && f.ref.length ? f.ref : 0,
+        f.lastRecord || '', f.lastChange || ''];
       let n = x.length; while (n > 6 && !x[n - 1]) n--;
       return x.slice(0, n);
     }) };
     if (o.desc) t.d = o.desc;
     if (o.records != null) t.r = o.records;
+    if (o.newestRecord) t.nr = o.newestRecord;
     if (Object.keys(lim).length) t.lim = lim;
     if (o.created) { t.cr = o.created; t.cb = o.createdBy; }
     if (auto[o.api]) t.au = auto[o.api];
