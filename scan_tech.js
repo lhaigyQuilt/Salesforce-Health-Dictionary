@@ -55,6 +55,7 @@ async function pool(items, limit, fn) {
   return res;
 }
 const day = d => (d ? String(d).slice(0, 10) : '');
+const { redact } = require('./redact');
 const nsKey = (ns, dev) => (ns ? ns + '__' : '') + dev;
 
 // Same object rule as the data dictionary, so the two always cover the same objects.
@@ -192,15 +193,18 @@ const EXCL = /(Share|History|Feed|ChangeEvent|Tag|Rule|RuleShare)$|__e$/;
     const co = d.custom ? coFor(d.name) : null, fl = fills[d.name];
     return {
       api: d.name, label: d.label, custom: !!d.custom,
-      desc: co ? co.desc : '', created: co ? co.created : '', createdBy: co ? co.createdBy : '',
+      desc: co ? redact(co.desc).text : '', created: co ? co.created : '', createdBy: co ? co.createdBy : '',
       records: fl ? fl.records : null, limits: LIM[d.name] || {},
       fields: d.fields.map(f => {
         const cf = CF[d.name + '.' + f.name] || {};
+        // credentials never reach the snapshot; what kind was found is kept for the SEC check
+        const fm = redact(f.calculatedFormula), ds = redact(cf.desc), hp = redact(f.inlineHelpText || cf.help);
+        const secrets = [...new Set([...fm.kinds, ...ds.kinds, ...hp.kinds])];
         return {
           name: f.name, label: f.label, type: f.type, kind: kindOf(f), custom: !!f.custom,
           len: f.length || f.precision || 0, req: !f.nillable && f.type !== 'boolean' && !f.defaultedOnCreate,
           uniq: !!f.unique, extId: !!f.externalId,
-          formula: f.calculatedFormula || '', desc: cf.desc || '', help: f.inlineHelpText || cf.help || '',
+          formula: fm.text, desc: ds.text, help: hp.text, secrets,
           ref: f.referenceTo || [], picks: (f.picklistValues || []).filter(v => v.active).length,
           created: cf.created || '', createdBy: cf.createdBy || '', modified: cf.modified || '', modifiedBy: cf.modifiedBy || '',
           filled: fl && fl.fields[f.name] != null ? fl.fields[f.name] : (fl && fl.records === 0 ? 0 : null),

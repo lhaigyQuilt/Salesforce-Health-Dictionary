@@ -5,6 +5,10 @@ const fs = require('fs');
 const OUT = __dirname.split(String.fromCharCode(92)).join('/');
 
 const CHECKS = [
+  // security
+  { code: 'SEC_SECRET', cat: 'Security', sev: 'high', title: 'Credential written into a formula, description or help text',
+    why: 'Anyone with Setup access, and any tool that reads metadata, can copy it. The value is blanked out in this dictionary.',
+    fix: 'Move it to a Named Credential or protected custom metadata, then have the key rotated. For a managed package, raise it with the vendor.' },
   // documentation
   { code: 'DOC_FIELD_DESC', cat: 'Documentation', sev: 'medium', title: 'Custom field has no description',
     why: 'Nobody can tell what the field is for or whether it is safe to change or delete.',
@@ -124,6 +128,8 @@ for (const id of ['sbu', 'xbu']) {
       for (const f of group) add('NAME_DUP_LABEL', o.api, f.name, 'Same label as ' + group.filter(g => g !== f).map(g => g.name).join(', '));
 
     for (const f of o.fields) {
+      // checked on every field, managed ones included: a leaked key matters whoever wrote it
+      if (f.secrets && f.secrets.length) add('SEC_SECRET', o.api, f.name, f.secrets.join(', ') + (pkgOf(f.name) ? ' · ' + pkgOf(f.name) + ' package' : ''));
       if (f.formula && f.formula.length > 3000) add('LIM_FORMULA_LONG', o.api, f.name, f.formula.length.toLocaleString('en-US') + ' characters');
       if (f.picks > 200) add('LIM_PICKLIST_BIG', o.api, f.name, f.picks + ' active values');
       if (!f.custom || isManagedField(f)) continue;
