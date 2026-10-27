@@ -23,6 +23,7 @@ fields are left out because they can't be edited.
 
 | Category | Check | Priority |
 |---|---|---|
+| Security | Credential written into a formula, description or help text (any field, managed included) | High |
 | Documentation | Custom field has no description | Medium |
 | | Input field has no help text | Low |
 | | Custom object has no description | Medium |
@@ -43,6 +44,11 @@ fields are left out because they can't be edited.
 | | Apex triggers and record-triggered flows on the same object | Low |
 | | Inactive flows, Process Builders, workflow and validation rules | Low |
 | Packages | Installed package whose objects are all empty | Medium |
+
+**Credentials are never stored.** `redact.js` blanks anything that looks like an API key,
+token, private key or a credential in a URL or assignment before the scan saves it, and
+the Security check reports the field. (The Zenkraft `zkmulti__LocationOnMap__c` formula
+ships a Google Maps key; GitHub secret scanning caught it in the first commit.)
 
 **Name matching** ignores case, punctuation, word order and filler words (of, the, a…),
 so `# of Jobs/Month?` matches `of_Jobs_Month__c`. Half or more words in common is a
