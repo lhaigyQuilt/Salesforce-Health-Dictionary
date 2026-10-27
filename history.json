@@ -1,0 +1,63 @@
+[
+ {
+  "date": "2026-10-27",
+  "counts": {
+   "sbu|NAME_DUP_LABEL": 92,
+   "sbu|DOC_FIELD_DESC": 2531,
+   "sbu|NAME_MISMATCH": 43,
+   "sbu|NAME_VERSIONED": 79,
+   "sbu|NAME_PARTIAL": 264,
+   "sbu|USE_RARE": 484,
+   "sbu|DOC_FIELD_HELP": 1816,
+   "sbu|USE_EMPTY": 260,
+   "sbu|NAME_CLEANUP": 29,
+   "sbu|LIM_PICKLIST_BIG": 31,
+   "sbu|DOC_OBJ_DESC": 32,
+   "sbu|USE_EMPTY_OBJECT": 9,
+   "sbu|LIM_NEAR": 2,
+   "sbu|LIM_FORMULA_LONG": 4,
+   "sbu|AUTO_INACTIVE": 324,
+   "sbu|AUTO_WFR_ACTIVE": 10,
+   "sbu|AUTO_MANY_FLOWS": 11,
+   "sbu|AUTO_MIXED": 22,
+   "sbu|PKG_UNUSED": 3,
+   "xbu|LIM_NEAR": 2,
+   "xbu|DOC_FIELD_DESC": 2510,
+   "xbu|DOC_FIELD_HELP": 2210,
+   "xbu|USE_RARE": 535,
+   "xbu|USE_EMPTY": 339,
+   "xbu|NAME_PARTIAL": 227,
+   "xbu|LIM_PICKLIST_BIG": 30,
+   "xbu|NAME_MISMATCH": 53,
+   "xbu|NAME_CLEANUP": 27,
+   "xbu|NAME_VERSIONED": 64,
+   "xbu|NAME_DUP_LABEL": 62,
+   "xbu|DOC_OBJ_DESC": 37,
+   "xbu|USE_EMPTY_OBJECT": 14,
+   "xbu|LIM_FORMULA_LONG": 2,
+   "xbu|AUTO_INACTIVE": 248,
+   "xbu|AUTO_WFR_ACTIVE": 6,
+   "xbu|AUTO_MANY_FLOWS": 10,
+   "xbu|AUTO_MIXED": 14,
+   "xbu|PKG_UNUSED": 3
+  },
+  "stats": {
+   "sbu": {
+    "customFields": 2845,
+    "documented": 314,
+    "nameChecked": 2845,
+    "nameOk": 2538,
+    "measured": 1648,
+    "empty": 260
+   },
+   "xbu": {
+    "customFields": 2733,
+    "documented": 223,
+    "nameChecked": 2733,
+    "nameOk": 2453,
+    "measured": 1873,
+    "empty": 339
+   }
+  }
+ }
+]

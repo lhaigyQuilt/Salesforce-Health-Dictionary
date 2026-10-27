@@ -1,0 +1,2 @@
+# Store and check out every file exactly as committed (refresh_health.cmd needs its CRLFs).
+* -text
