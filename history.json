@@ -87,5 +87,94 @@
     }
    }
   }
+ },
+ {
+  "date": "2026-11-02",
+  "counts": {
+   "sbu|NAME_DUP_LABEL": 92,
+   "sbu|DOC_FIELD_DESC": 2535,
+   "sbu|NAME_MISMATCH": 43,
+   "sbu|NAME_VERSIONED": 79,
+   "sbu|NAME_PARTIAL": 264,
+   "sbu|DOC_FIELD_HELP": 1820,
+   "sbu|NAME_CLEANUP": 29,
+   "sbu|LIM_PICKLIST_BIG": 31,
+   "sbu|FH_STOPPED": 141,
+   "sbu|FH_RETIRE": 827,
+   "sbu|FH_REQ_EMPTY": 36,
+   "sbu|FH_FORMULA": 280,
+   "sbu|FH_LATE": 60,
+   "sbu|DOC_OBJ_DESC": 32,
+   "sbu|USE_EMPTY_OBJECT": 9,
+   "sbu|LIM_NEAR": 2,
+   "sbu|FH_RARE": 129,
+   "sbu|LIM_FORMULA_LONG": 4,
+   "sbu|SEC_SECRET": 1,
+   "sbu|AUTO_INACTIVE": 324,
+   "sbu|AUTO_WFR_ACTIVE": 10,
+   "sbu|AUTO_MANY_FLOWS": 11,
+   "sbu|AUTO_MIXED": 22,
+   "sbu|PKG_UNUSED": 3,
+   "xbu|LIM_NEAR": 2,
+   "xbu|DOC_FIELD_DESC": 2511,
+   "xbu|DOC_FIELD_HELP": 2213,
+   "xbu|NAME_PARTIAL": 226,
+   "xbu|LIM_PICKLIST_BIG": 30,
+   "xbu|NAME_MISMATCH": 53,
+   "xbu|NAME_CLEANUP": 27,
+   "xbu|NAME_VERSIONED": 64,
+   "xbu|FH_RETIRE": 945,
+   "xbu|FH_STOPPED": 137,
+   "xbu|FH_RARE": 175,
+   "xbu|FH_REQ_EMPTY": 53,
+   "xbu|FH_FORMULA": 173,
+   "xbu|FH_LATE": 41,
+   "xbu|NAME_DUP_LABEL": 62,
+   "xbu|DOC_OBJ_DESC": 37,
+   "xbu|USE_EMPTY_OBJECT": 14,
+   "xbu|LIM_FORMULA_LONG": 2,
+   "xbu|SEC_SECRET": 1,
+   "xbu|AUTO_INACTIVE": 247,
+   "xbu|AUTO_WFR_ACTIVE": 6,
+   "xbu|AUTO_MANY_FLOWS": 10,
+   "xbu|AUTO_MIXED": 14,
+   "xbu|PKG_UNUSED": 3
+  },
+  "stats": {
+   "sbu": {
+    "customFields": 2849,
+    "documented": 314,
+    "nameChecked": 2849,
+    "nameOk": 2542,
+    "ownScored": 2429,
+    "retire": 827,
+    "ownBands": {
+     "Healthy": 403,
+     "Review": 371,
+     "Monitor": 421,
+     "Retire": 637,
+     "Likely Debt": 417,
+     "Too New - Provisional": 124,
+     "Insufficient Data": 56
+    }
+   },
+   "xbu": {
+    "customFields": 2734,
+    "documented": 223,
+    "nameChecked": 2734,
+    "nameOk": 2455,
+    "ownScored": 2414,
+    "retire": 945,
+    "ownBands": {
+     "Review": 398,
+     "Retire": 657,
+     "Likely Debt": 404,
+     "Healthy": 343,
+     "Monitor": 403,
+     "Too New - Provisional": 125,
+     "Insufficient Data": 84
+    }
+   }
+  }
  }
 ]

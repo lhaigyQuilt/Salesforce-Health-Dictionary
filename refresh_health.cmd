@@ -1,7 +1,7 @@
 @echo off
 rem Rescan SBU + XBU production, rerun the health checks, rebuild the page, commit and push.
 rem Read-only against both orgs: describes, Tooling SELECTs and aggregate COUNT() queries.
-rem Run by Windows Task Scheduler ("SF Health Dictionary Refresh") on the 1st of each month.
+rem Run by Windows Task Scheduler ("SF Health Dictionary Refresh") every other Friday at 08:00 (8-hour limit).
 rem A failed push keeps the commit, logs it, and exits 2 - push by hand.
 setlocal
 set R=%~dp0
